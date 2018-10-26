@@ -156,6 +156,7 @@ void LightState::setup() {
   LightColorValues recovered_values;
   recovered_values.load_from_preferences(this->get_name(), this->get_traits());
   this->set_immediately(recovered_values);
+  this->output_->setup_state(this);
 }
 float LightState::get_setup_priority() const {
   return setup_priority::HARDWARE - 1.0f;
@@ -422,6 +423,10 @@ LightState::StateCall::StateCall(LightState *state)
     : state_(state) {
 
 }
+void LightOutput::setup_state(LightState *state) {
+
+}
+
 } // namespace light
 
 ESPHOMELIB_NAMESPACE_END

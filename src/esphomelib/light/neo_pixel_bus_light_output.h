@@ -2,18 +2,46 @@
 #define ESPHOMELIB_NEO_PIXEL_BUS_LIGHT_OUTPUT_H
 
 #include "esphomelib/defines.h"
-#include "esphomelib/helpers.h"
-#include "esphomelib/light/light_state.h"
-#include "esphomelib/log.h"
-#include "esphomelib/power_supply_component.h"
 
 #ifdef USE_NEO_PIXEL_BUS_LIGHT
 
+#include "esphomelib/helpers.h"
+#include "esphomelib/light/light_state.h"
+#include "esphomelib/light/addressable_light.h"
+#include "esphomelib/power_supply_component.h"
 #include "NeoPixelBus.h"
 
 ESPHOMELIB_NAMESPACE_BEGIN
 
 namespace light {
+
+enum class ESPNeoPixelOrder {
+  GBWR = 0b11000110,
+  GBRW = 0b10000111, GBR = 0b10000111,
+  GWBR = 0b11001001,
+  GRBW = 0b01001011, GRB = 0b01001011,
+  GWRB = 0b10001101,
+  GRWB = 0b01001110,
+  BGWR = 0b11010010,
+  BGRW = 0b10010011, BGR = 0b10010011,
+  WGBR = 0b11011000,
+  RGBW = 0b00011011, RGB = 0b00011011,
+  WGRB = 0b10011100,
+  RGWB = 0b00011110,
+  BWGR = 0b11100001,
+  BRGW = 0b01100011, BRG = 0b01100011,
+  WBGR = 0b11100100,
+  RBGW = 0b00100111, RBG = 0b00100111,
+  WRGB = 0b01101100,
+  RWGB = 0b00101101,
+  BWRG = 0b10110001,
+  BRWG = 0b01110010,
+  WBRG = 0b10110100,
+  RBWG = 0b00110110,
+  WRBG = 0b01111000,
+  RWBG = 0b00111001,
+};
+
 /** This component implements support for many types of addressable LED lights.
  *
  * To do this, it uses the NeoPixelBus library. The API for setting up the different
@@ -23,156 +51,75 @@ namespace light {
  *
  * These add_leds helpers can, however, only be called once on a NeoPixelBusLightOutputComponent.
  */
-template <typename T_COLOR_FEATURE, typename T_METHOD>
-class NeoPixelBusLightOutputComponent : public LightOutput, public Component {
+template<typename T_COLOR_FEATURE, typename T_METHOD>
+class NeoPixelBusLightOutputBase : public LightOutput, public Component, public AddressableLight {
  public:
-  /// Only for custom effects: Tell this component to write the new color values on the next loop() iteration.
-  void schedule_show() {
-    this->next_show_ = true;
-  }
-
-  void set_power_supply(PowerSupplyComponent *power_supply);
-
-  NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *getcontroller_() const {
-    return this->controller_;
-  }
-
-  /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
-  void set_max_refresh_rate(uint32_t interval_us) {
-    this->max_refresh_rate_ = interval_us;
-  }
-
-  /// Only for custom effects: Prevent the LightState from writing over all color values in CRGB.
-  void prevent_writing_leds() {
-    this->prevent_writing_leds_ = true;
-  }
-
-  /// Only for custom effects: Stop prevent_writing_leds. Call this when your effect terminates.
-  void unprevent_writing_leds() {
-    this->prevent_writing_leds_ = false;
-  }
-
-  /// Add some LEDS, can only be called once.
-  NeoPixelBus<T_COLOR_FEATURE, T_METHOD> &add_leds(NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller) {
-    assert(this->controller_ == nullptr && "NeoPixelBusLightOutputComponent only supports one controller at a time.");
-
-    this->controller_ = controller;
-    this->controller_->ClearTo(typename T_COLOR_FEATURE::ColorObject(0, 0, 0));
-
-    this->controller_->Begin();
-    return *this->controller_;
-  }
-
-  // ========== INTERNAL METHODS ==========
-  LightTraits get_traits() override {
-    if (std::is_same<typename T_COLOR_FEATURE::ColorObject, RgbwColor>::value) {
-      return {true, true, true, true};
-    } else {
-      return {true, true, false, true};
-    }
-  }
-
-  void write_state(LightState *state) override {
-    if (this->prevent_writing_leds_)
-      return;
-    this->controller_->ClearTo(
-        this->get_light_color<typename T_COLOR_FEATURE::ColorObject>(state, state->get_current_values()));
-
-    this->schedule_show();
-  }
-
-  void setup() override {
-    assert(this->controller_ != nullptr && "You need to add LEDs to this controller!");
-    this->controller_->ClearTo(typename T_COLOR_FEATURE::ColorObject(0, 0, 0));
-  }
-  void loop() override {
-    if (!this->next_show_)
-      return;
-
-    uint32_t now = micros();
-    this->last_refresh_ = now;
-    this->next_show_ = false;
+  void schedule_show();
 
 #ifdef USE_OUTPUT
-    if (this->power_supply_ != nullptr) {
-      bool is_light_on = false;
-      for (int i = 0; i < this->controller_->PixelCount(); i++) {
-        auto color = this->controller_->GetPixelColor(i);
-        if (is_on(color)) {
-          is_light_on = true;
-          break;
-        }
-      }
-
-      if (is_light_on && !this->has_requested_high_power_) {
-        this->power_supply_->request_high_power();
-        this->has_requested_high_power_ = true;
-      }
-      if (!is_light_on && this->has_requested_high_power_) {
-        this->power_supply_->unrequest_high_power();
-        this->has_requested_high_power_ = false;
-      }
-    }
+  void set_power_supply(PowerSupplyComponent *power_supply);
 #endif
 
-    this->controller_->Show();
-  }
-  float get_setup_priority() const override {
-    return setup_priority::HARDWARE;
-  }
-  template <typename U>
-  static typename std::enable_if<std::is_same<U, RgbColor>::value, RgbColor>::type get_light_color(
-      LightState *state, const LightColorValues values) {
-    float red, green, blue;
-    values.as_rgb(&red, &green, &blue);
-    red = gamma_correct(red, state->get_gamma_correct());
-    green = gamma_correct(green, state->get_gamma_correct());
-    blue = gamma_correct(blue, state->get_gamma_correct());
-    uint8_t redb = red * 255;
-    uint8_t greenb = green * 255;
-    uint8_t blueb = blue * 255;
-    return RgbColor(redb, greenb, blueb);
-  }
+  NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *get_controller_() const;
 
-  template <typename U>
-  static typename std::enable_if<std::is_same<U, RgbwColor>::value, RgbwColor>::type get_light_color(
-      LightState *state, const LightColorValues values) {
-    float red, green, blue, white, brightness;
-    values.as_rgbw(&red, &green, &blue, &white);
-    values.as_brightness(&brightness);
-    red = gamma_correct(red, state->get_gamma_correct());
-    green = gamma_correct(green, state->get_gamma_correct());
-    blue = gamma_correct(blue, state->get_gamma_correct());
-    white = gamma_correct(white, state->get_gamma_correct());
-    uint8_t redb = red * 255;
-    uint8_t greenb = green * 255;
-    uint8_t blueb = blue * 255;
-    uint8_t whiteb = white * 255;
-    return RgbwColor(redb, greenb, blueb, whiteb);
-  }
+  void set_correction(float red, float green, float blue, float white = 0.0f);
+
+  void clear_effect_data() override;
+
+  void setup_state(LightState *state) override;
+
+  /// Add some LEDS, can only be called once.
+  void add_leds(uint16_t count_pixels, uint8_t pin);
+  void add_leds(uint16_t count_pixels, uint8_t pin_clock, uint8_t pin_data);
+  void add_leds(uint16_t count_pixels);
+  void add_leds(NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller);
+
+  // ========== INTERNAL METHODS ==========
+  void write_state(LightState *state) override;
+
+  void setup() override;
+
+  void loop() override;
+
+  float get_setup_priority() const override;
+
+  int32_t size() const override;
+
+  void set_pixel_order(ESPNeoPixelOrder order);
 
  protected:
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller_{nullptr};
-  uint32_t last_refresh_{0};
   bool next_show_{true};
+  ESPColorCorrection correction_{};
+  uint8_t *effect_data_{nullptr};
+  uint8_t rgb_offsets_[4];
 #ifdef USE_OUTPUT
   PowerSupplyComponent *power_supply_{nullptr};
   bool has_requested_high_power_{false};
 #endif
-  static bool is_on(const RgbColor &color) {
-    return color.R != 0 && color.G != 0 && color.B != 0;
-  }
+};
 
-  static bool is_on(const RgbwColor &color) {
-    return color.R != 0 && color.G != 0 && color.B != 0 && color.W != 0;
-  }
+template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbFeature>
+class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_COLOR_FEATURE, T_METHOD> {
+ public:
+  inline ESPColorView operator[](int32_t index) const override;
 
-  bool prevent_writing_leds_{false};
+  LightTraits get_traits() override;
+};
+
+template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbwFeature>
+class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_COLOR_FEATURE, T_METHOD> {
+ public:
+  inline ESPColorView operator[](int32_t index) const override;
+
+  LightTraits get_traits() override;
 };
 
 }  // namespace light
 
 ESPHOMELIB_NAMESPACE_END
+
+#include "esphomelib/light/neo_pixel_bus_light_output.tcc"
 
 #endif  // USE_NEO_PIXEL_BUS_LIGHT
 

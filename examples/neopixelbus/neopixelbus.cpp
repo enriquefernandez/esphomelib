@@ -15,13 +15,15 @@ void setup() {
   App.init_mqtt("MQTT_HOST", "USERNAME", "PASSWORD");
   App.init_ota()->start_safe_mode();
 
-  auto neopixel = App.make_neo_pixel_bus_light("NeoPixelBus SK 6812 Light", strip);
+  auto neopixel = App.make_neo_pixel_bus_rgbw_light<Neo800KbpsMethod, NeoGrbwFeature>("NeoPixelBus SK 6812 Light");
+  neopixel.output->set_pixel_order(light::ESPNeoPixelOrder::GRBW);
+  neopixel.output->add_leds(&strip);
   neopixel.state->set_default_transition_length(800);
 
   neopixel.state->add_effects({
     new light::RandomLightEffect("Random"),
-    new light::NeoPixelBusLoop<NeoGrbwFeature, Neo800KbpsMethod>("Loop", 60000, 100),
-    new light::NeoPixelBusLoop<NeoGrbwFeature, Neo800KbpsMethod>("Short Loop", 20000, 3)
+    new light::AddressableColorWipeEffect("Color Wipe"),
+    new light::AddressableRainbowLightEffect("Rainbow"),
   });
 
   App.setup();
