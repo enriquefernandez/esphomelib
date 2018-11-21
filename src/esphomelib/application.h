@@ -109,6 +109,7 @@
 #include "esphomelib/sensor/ultrasonic_sensor.h"
 #include "esphomelib/sensor/uptime_sensor.h"
 #include "esphomelib/sensor/wifi_signal_sensor.h"
+#include "esphomelib/sensor/zh03.h"
 #include "esphomelib/stepper/stepper.h"
 #include "esphomelib/stepper/a4988.h"
 #include "esphomelib/switch_/gpio_switch.h"
@@ -852,6 +853,18 @@ class Application {
   MakeMHZ19Sensor make_mhz19_sensor(UARTComponent *parent, const std::string &co2_name,
                                     uint32_t update_interval = 15000);
 #endif
+
+// #ifdef USE_ZH03
+  struct MakeZH03Sensor {
+    sensor::ZH03Component *zh03;
+    sensor::MQTTSensorComponent *mqtt_pm25;
+    sensor::MQTTSensorComponent *mqtt_pm10;
+    sensor::MQTTSensorComponent *mqtt_pm1;
+  };
+
+  MakeZH03Sensor make_zh03_sensor(UARTComponent *parent, const std::string &pm25_name, const std::string &pm10_name, const std::string &pm1_name,
+                 uint32_t update_interval = 15000);
+//#endif
 
 #ifdef USE_UPTIME_SENSOR
   struct MakeUptimeSensor {

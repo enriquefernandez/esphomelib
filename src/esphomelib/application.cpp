@@ -942,6 +942,20 @@ Application::MakeMHZ19Sensor Application::make_mhz19_sensor(UARTComponent *paren
 }
 #endif
 
+// #ifdef USE_ZH03
+Application::MakeZH03Sensor Application::make_zh03_sensor(UARTComponent *parent, const std::string &pm25_name, const std::string &pm10_name, const std::string &pm1_name,
+                 uint32_t update_interval) {
+  auto *zh03 = this->register_component(new ZH03Component(parent, pm25_name, pm10_name, pm1_name, update_interval));
+
+  return MakeZH03Sensor{
+      .zh03 = zh03,
+      .mqtt_pm25 = this->register_sensor(zh03->get_pm25_sensor()),
+      .mqtt_pm10 = this->register_sensor(zh03->get_pm10_sensor()),
+      .mqtt_pm1 = this->register_sensor(zh03->get_pm1_sensor()),
+  };
+}
+//#endif
+
 #ifdef USE_UART
 UARTComponent *Application::init_uart(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate) {
   return this->register_component(new UARTComponent(tx_pin, rx_pin, baud_rate));

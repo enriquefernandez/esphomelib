@@ -89,6 +89,7 @@
   #define USE_PN532
   #define USE_UART
   #define USE_MHZ19
+  #define USE_ZH03
   #define USE_UART_SWITCH
   #define USE_UPTIME_SENSOR
   #define USE_INA219
@@ -197,6 +198,14 @@
     #define USE_UART
   #endif
 #endif
+// #ifdef USE_ZH03
+  #ifndef USE_SENSOR
+    #define USE_SENSOR
+  #endif
+  #ifndef USE_UART
+    #define USE_UART
+  #endif
+// #endif
 #ifdef USE_TCS34725
   #ifndef USE_SENSOR
     #define USE_SENSOR
